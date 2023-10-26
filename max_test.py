@@ -1,15 +1,25 @@
 from max.client import Client
-# import ccxt.async_support as ccxt  # noqa: E402
+import ccxt.async_support as ccxt_async  # noqa: E402
 import ccxt
+import asyncio
 max_client = Client('','')
 ace_client = ccxt.ace()
 bito_client = ccxt.bitopro()
 
-address = max_client.get_private_withdrawal_addresses('USDT')
-print(address)
+aceAsync = ccxt_async.ace({'apiKey':'', 'secret':''})
+
+async def main():
+    ace_order = await aceAsync.create_market_order('BTC/TWD','buy',0.001)
+    print(ace_order)
+    await aceAsync.close()
+
+asyncio.run(main())
+
+# address = max_client.get_private_withdrawal_addresses('USDT')
+# print(address)
 # 提領是可以成功的
-send_address = max_client.set_private_create_withdrawal('USDT','5','TAnK256mi9svBE6D1pZCgSZVEeNuuK6TFY')
-print(send_address)
+# send_address = max_client.set_private_create_withdrawal('USDT','5','TAnK256mi9svBE6D1pZCgSZVEeNuuK6TFY')
+# print(send_address)
 # max_price = max_client.get_public_pair_depth('usdttwd',1)
 # ace_price = ace_client.fetch_order_book('USDT/TWD',1)
 # bito_price = bito_client.fetch_order_book('USDT/TWD',1)
@@ -30,7 +40,7 @@ print(send_address)
 # print(ace_price)
 # print(bito_price)
 
-print(max_client.get_public_vip_levels()[0])
+# print(max_client.get_public_vip_levels()[0])
 # print('---'*10)
 # print(ace_client.fees['trading']['taker'])
 # print('---'*10)

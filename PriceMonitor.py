@@ -4,21 +4,18 @@ from datetime import datetime
 from max.client import Client
 import pandas as pd
 import ccxt.async_support as ccxt_async
-
-message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn', 'total_profit']
+from PersonalExchangeInfo import PersonalExchangeInfo
 arbitrage_path = './arbitrage_history.csv'
 
-class CoinWorker:
-    def __init__(self,pair=['USDT','TWD']):
+class PriceMointor:
+    def __init__(self, exchanges: PersonalExchangeInfo, pair=['USDT','TWD'], min_order_size = 0.001):
         self.pair = pair
-        self.maxClient = Client('','')
-        self.aceClient = ccxt_async.ace()
-        self.bitoClient = ccxt_async.bitopro()
-        self.exchangs_fees = [self.maxClient.get_public_vip_levels()[0]['taker_fee'],
-                            self.aceClient.fees['trading']['taker'],
-                            self.bitoClient.fees['trading']['taker']]
-        self.exchanges_name = ['max', 'ace', 'bito']
-        self.min_order_size = 0.05
+        self.maxClient: Client= exchanges.registered_exchange['max']
+        self.aceClient: ccxt_async = exchanges.registered_exchange['ace']
+        self.bitoClient: ccxt_async = exchanges.registered_exchange['bitopro']
+        self.exchangs_fees = exchanges.get_exchanges_fee()
+        self.exchanges_name = exchanges.support_exchange_name
+        self.min_order_size = min_order_size
         self.total_profit = 0
     
     async def fetch_max_order_book(self):
@@ -85,20 +82,22 @@ class CoinWorker:
         await self.bitoClient.close()
 
 async def main():
-    wait_time = 2
+    wait_time = 4.47
     start_time = datetime.now()
-    coinWorker = CoinWorker(['ETH','TWD'])
+    eric = PersonalExchangeInfo()
+    PriceMointors = [PriceMointor(eric, pair=['ETH','TWD']),PriceMointor(eric, pair=['BTC','TWD'])]
     print("Starting bot")
+    message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn', 'total_profit']
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w')
     while True:
         try:
             total_time = datetime.now() - start_time
             print(f"running time: {total_time}")
-            await coinWorker.bot()
-            print('--'*50)
+            asyncio.gather(*(worker.bot() for worker in PriceMointors))
+            print('--'*30)
         except e:
             print("Exception: ", e)
-            await coinWorker.close()
+            await asyncio.gather(*(worker.close() for worker in PriceMointors))
 
         await asyncio.sleep(wait_time)
 

@@ -22,17 +22,14 @@ print('CCXT Version:', ccxt.__version__)
 ####################################################################################
 
 # bot options
-wait_time = 5 # seconds to wait between each check
+wait_time = 2 # seconds to wait between each check
 paper_trading = True # set to false to actually execute trades
 
 # exchanges you want to use to look for arbitrage opportunities
 exchanges = [
-    ccxt.okx(),
-    ccxt.bybit({"options":{"defaultType":"spot"}}),
     ccxt.binance(),
-    ccxt.kucoin(),
-    ccxt.bitmart(),
-    ccxt.gate(),
+    ccxt.ace(),
+    ccxt.bitopro(),
 ]
 
 # symbols you want to trade
@@ -53,7 +50,7 @@ async def get_last_prices():
 async def bot():
     prices = await get_last_prices()
     for symbol in symbols:
-        ms = int(time.time() * 1000)
+        ms = time.strftime('%X')
 
         symbol_prices = [ exchange_prices[symbol]['last'] for exchange_prices in prices ]
 

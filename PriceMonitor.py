@@ -85,7 +85,7 @@ async def main():
     wait_time = 4.47
     start_time = datetime.now()
     eric = PersonalExchangeInfo()
-    PriceMointors = [PriceMointor(eric, pair=['ETH','TWD']),PriceMointor(eric, pair=['BTC','TWD'])]
+    PriceMointors = [PriceMointor(eric, pair=['ETH','BTC'], min_order_size=0.05),PriceMointor(eric, pair=['BTC','TWD']),PriceMointor(eric, pair=['ETH','TWD'],min_order_size=0.05)]
     print("Starting bot")
     message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn', 'total_profit']
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w')

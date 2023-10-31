@@ -32,7 +32,8 @@ async def main():
             for result in results:
                 if result is not None:
                     result.to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='a')
-            print(f"total_profit: {total_profit}")
+                    total_profit += result['earn'].iloc[-1]
+            print(f"total profit: {total_profit}")
             print('--'*30)
         except e:
             print("Exception: ", e)

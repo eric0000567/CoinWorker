@@ -10,11 +10,11 @@ if not os.path.exists(arbitrage_path):
     os.makedirs(arbitrage_path)
 
 async def main():
-    wait_time = 2
+    wait_time = 1.66
     start_time = datetime.now()
     eric = PersonalExchangeInfo('eric')
     eric_mointor = PriceMointor(eric)
-    total_profit = 0
+    earn_times = 0
     print("Starting bot")
     message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn']
     pd.DataFrame(columns=message_columns).to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='w')
@@ -32,10 +32,10 @@ async def main():
             for result in results:
                 if result is not None:
                     result.to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='a')
-                    total_profit += result['earn'].iloc[-1]
-            print(f"total profit: {total_profit}")
+                    earn_times += 1
+            print(f"earn times: {earn_times}")
             print('--'*30)
-        except e:
+        except Exception as e:
             print("Exception: ", e)
             await asyncio.gather(eric_mointor.close())
 

@@ -26,10 +26,10 @@ class PersonalExchangeInfo:
         exchanges_fees += [ self.registered_exchange[name].fees['trading']['taker'] for name in self.support_exchange_name[1:]]
         return exchanges_fees
     
-    def post_order(self, exchangeName, size, price, side):
+    async def post_order(self, exchangeName, size, price, side):
         #TODO:新增異步下單及檢測該單實際價值(分成post buy & post sell可能比較好)
         if exchangeName == 'max':
-            pass
+            self.registered_exchange['max']
         else:
             self.registered_exchange[exchangeName]
         pass

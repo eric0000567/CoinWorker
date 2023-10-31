@@ -3,9 +3,11 @@ import asyncio
 from PersonalExchangeInfo import PersonalExchangeInfo
 from PriceMonitor import PriceMointor
 import pandas as pd
+import os
 
 arbitrage_path = 'arbitrage_history/'
-
+if not os.path.exists(arbitrage_path):
+    os.makedirs(arbitrage_path)
 
 async def main():
     wait_time = 2

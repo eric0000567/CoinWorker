@@ -2,7 +2,8 @@ import ccxt.async_support as ccxt_async
 from max.client import Client
 
 class PersonalExchangeInfo:
-    def __init__(self) -> None:
+    def __init__(self, user_name) -> None:
+        self.user_name = user_name
         self.support_exchange_name = ['max', 'ace', 'bitopro']
         self.registered_exchange = {}
         [self.register_exchange_key_secret(exchangeName) for exchangeName in self.support_exchange_name]
@@ -32,7 +33,3 @@ class PersonalExchangeInfo:
         else:
             self.registered_exchange[exchangeName]
         pass
-    
-test = PersonalExchangeInfo()
-print(test.get_exchanges_fee())
-print(test.support_exchange_name)

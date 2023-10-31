@@ -14,9 +14,9 @@ async def main():
     start_time = datetime.now()
     eric = PersonalExchangeInfo('eric')
     eric_mointor = PriceMointor(eric)
-    
+    total_profit = 0
     print("Starting bot")
-    message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn', 'total_profit']
+    message_columns = ['time', 'pair', 'sell_price', 'buy_price', 'order_size', 'earn']
     pd.DataFrame(columns=message_columns).to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='w')
     while True:
         try:
@@ -32,6 +32,7 @@ async def main():
             for result in results:
                 if result is not None:
                     result.to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='a')
+            print(f"total_profit: {total_profit}")
             print('--'*30)
         except e:
             print("Exception: ", e)

@@ -8,6 +8,7 @@ from PersonalExchangeInfo import PersonalExchangeInfo
 
 class PriceMointor:
     def __init__(self, exchanges: PersonalExchangeInfo):
+        self.exchanges = exchanges
         self.maxClient: Client= exchanges.registered_exchange['max']
         self.aceClient: ccxt_async = exchanges.registered_exchange['ace']
         self.bitoClient: ccxt_async = exchanges.registered_exchange['bitopro']
@@ -66,6 +67,13 @@ class PriceMointor:
         record_time = time.strftime('%X')
         if (profit > 0):
             history = pd.DataFrame([[record_time, pair[0]+'/'+pair[1], sell_price, buy_price, order_size, profit]])
+            sellOrder = asyncio.create_task(self.exchanges.post_market_order(sell_exchange_name, pair, 'sell', order_size))
+            buyOrder = asyncio.create_task(self.exchanges.post_market_order(buy_exchange_name, pair, 'buy', order_size))
+            
+            sellState = await sellOrder
+            buyState = await buyOrder
+            #TODO: 回傳值要計算利潤？但有需要那麼多東西在bot嗎？
+
             print(f"{record_time} {pair[0]+'/'+pair[1]} arbitrage coming!!!\n sell price in {sell_exchange_name}: {sell_price}\n buy price in {buy_exchange_name}: {buy_price}  \n order size: {order_size} \n earn: {pair[1]}${profit}")
             return history
         else:

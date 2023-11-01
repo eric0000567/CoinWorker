@@ -31,7 +31,7 @@ async def main():
             results = await asyncio.gather(*PriceMointors)
             for result in results:
                 if result is not None:
-                    result.to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='a')
+                    result.to_csv(f"{arbitrage_path}/{eric.user_name}_{start_time}.csv", mode='a',header=False)
                     earn_times += 1
             print(f"earn times: {earn_times}")
             print('--'*30)

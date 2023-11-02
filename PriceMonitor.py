@@ -1,29 +1,25 @@
 import asyncio
-import time
-from datetime import datetime
 from max.client import Client
-import pandas as pd
 import ccxt.async_support as ccxt_async
-from PersonalExchangeInfo import PersonalExchangeInfo
+import time
 
 class PriceMointor:
-    def __init__(self, exchanges: PersonalExchangeInfo):
-        self.exchanges = exchanges
-        self.maxClient: Client= exchanges.registered_exchange['max']
-        self.aceClient: ccxt_async = exchanges.registered_exchange['ace']
-        self.bitoClient: ccxt_async = exchanges.registered_exchange['bitopro']
-        self.exchangs_fees = exchanges.get_exchanges_fee()
-        self.exchanges_name = exchanges.support_exchange_name
+    def __init__(self):
+        self.exchanges_client = {'max': Client('',''),
+                                 'ace': ccxt_async.ace(),
+                                 'bitopro': ccxt_async.bitopro()}
+        self.exchanges_name = [name for name in self.exchanges_client]
+        self.exchangs_fees = {name:self.exchanges_client[name].fees['trading']['taker'] for name in self.exchanges_name[1:]}
+        self.exchangs_fees['max'] = self.exchanges_client['max'].get_public_vip_levels()[0]['taker_fee']
     
-    async def fetch_max_order_book(self, pairOne="BTC", pairTwo="USDT"):
-        loop = asyncio.get_event_loop()
-        max_price = await loop.run_in_executor(None, self.maxClient.get_public_pair_depth, pairOne+pairTwo, 1)
-        return max_price
+    async def fetch_max_order_book(self, pair_one="BTC", pair_two="USDT"):
+        return self.exchanges_client['max'].get_public_pair_depth(pair_one+pair_two, 1)
 
-    async def get_exchange_bids_asks(self, pairOne="BTC", pairTwo="USDT"):
-        max_price_future = asyncio.create_task(self.fetch_max_order_book(pairOne, pairTwo))
-        ace_price_future = asyncio.create_task(self.aceClient.fetch_order_book(pairOne+"/"+pairTwo,1))
-        bito_price_future = asyncio.create_task(self.bitoClient.fetch_order_book(pairOne+"/"+pairTwo,1))
+    async def get_exchange_bids_asks(self, pair_one="BTC", pair_two="USDT"):
+        #TODO: 需優化，要可動態調整
+        max_price_future = asyncio.create_task(self.fetch_max_order_book(pair_one, pair_two))
+        ace_price_future = asyncio.create_task(self.exchanges_client['ace'].fetch_order_book(pair_one+"/"+pair_two,1))
+        bito_price_future = asyncio.create_task(self.exchanges_client['bitopro'].fetch_order_book(pair_one+"/"+pair_two,1))
 
         max_price = await max_price_future
         ace_price = await ace_price_future
@@ -35,7 +31,7 @@ class PriceMointor:
                 {'asks':bito_price['asks'][0], 'bids':bito_price['bids'][0]}]
 
 
-    async def bot(self, pair=['USDT','TWD'], min_order_size = 0.001):
+    async def trade_signal(self, pair=['USDT','TWD'], min_order_size = 0.001):
         exchange_price = await self.get_exchange_bids_asks(pair[0], pair[1])
 
         asks_price_list = [float(s['asks'][0]) for s in exchange_price]
@@ -52,35 +48,32 @@ class PriceMointor:
                          bids_size_list[bids_price_list.index(sell_price)],
                          min_order_size)
         
-        buy_exchange_fee = float(self.exchangs_fees[asks_price_list.index(buy_price)])
         buy_exchange_name = self.exchanges_name[asks_price_list.index(buy_price)]
-
-        buy_fee = order_size * buy_price * buy_exchange_fee
-
-        sell_exchange_fee = float(self.exchangs_fees[bids_price_list.index(sell_price)])
         sell_exchange_name = self.exchanges_name[bids_price_list.index(sell_price)]
-        sell_fee = order_size * sell_price * sell_exchange_fee
 
-        price_profit = sell_price - buy_price
-        profit = (price_profit * order_size) - (buy_fee + sell_fee)
+        profit = self.spread_profit_counter(sell_exchange_name,
+                                            sell_price,
+                                            buy_exchange_name,
+                                            buy_price,
+                                            order_size)
 
-        record_time = time.strftime('%X')
+        #TODO 殘值計算，如果交易額度沒有達到最低要求不要購買
         if (profit > 0):
-            history = pd.DataFrame([[record_time, pair[0]+'/'+pair[1], sell_price, buy_price, order_size, profit]])
-            sellOrder = asyncio.create_task(self.exchanges.post_market_order(sell_exchange_name, pair, 'sell', order_size))
-            buyOrder = asyncio.create_task(self.exchanges.post_market_order(buy_exchange_name, pair, 'buy', order_size))
-            
-            sellState = await sellOrder
-            buyState = await buyOrder
-            #TODO: 回傳值要計算利潤？但有需要那麼多東西在bot嗎？
-
-            print(f"{record_time} {pair[0]+'/'+pair[1]} arbitrage coming!!!\n sell price in {sell_exchange_name}: {sell_price}\n buy price in {buy_exchange_name}: {buy_price}  \n order size: {order_size} \n earn: {pair[1]}${profit}")
-            return history
-        else:
-            print(f"{record_time} {pair[0]+'/'+pair[1]} no arbitrage opportunity\n sell price in {sell_exchange_name}: {sell_price}\n buy price in {buy_exchange_name}: {buy_price} \n spread: {profit}")
+            result = {'pair':pair,
+                      'size':order_size,
+                      'buy':{'ex_name':buy_exchange_name,
+                             'price':buy_price},
+                      'sell':{'ex_name':sell_exchange_name,
+                             'price':sell_price}}
+            print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} order size: {order_size} \n earn: {pair[1]}${profit}")
+            return result
+        print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n spread: {profit}")
         return None
 
+    def spread_profit_counter(self, sell_exchange_name, sell_price, buy_exchange_name, buy_price, order_size):
+        buy_fee = order_size * buy_price * float(self.exchangs_fees[buy_exchange_name])
+        sell_fee = order_size * sell_price * self.exchangs_fees[sell_exchange_name]
+        return ((sell_price - buy_price) * order_size) - (buy_fee + sell_fee)
 
     async def close(self):
-        await self.aceClient.close()
-        await self.bitoClient.close()
+        [await self.exchanges_client[i].close() for i in self.exchanges_name[1:]]

@@ -1,7 +1,6 @@
 import asyncio
 from max.client import Client
 import ccxt.async_support as ccxt_async
-import time
 
 class PriceMointor:
     def __init__(self):
@@ -30,7 +29,6 @@ class PriceMointor:
                 {'asks':ace_price['asks'][0][::-1], 'bids':ace_price['bids'][0][::-1]},
                 {'asks':bito_price['asks'][0], 'bids':bito_price['bids'][0]}]
 
-
     async def trade_signal(self, pair=['USDT','TWD'], min_order_size = 0.001):
         exchange_price = await self.get_exchange_bids_asks(pair[0], pair[1])
 
@@ -38,8 +36,6 @@ class PriceMointor:
         asks_size_list = [float(s['asks'][1]) for s in exchange_price]
         bids_price_list = [float(b['bids'][0]) for b in exchange_price]
         bids_size_list = [float(b['bids'][1]) for b in exchange_price]
-
-
         
         buy_price = min(asks_price_list)
         sell_price = max(bids_price_list)

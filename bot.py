@@ -5,21 +5,9 @@ from PriceMonitor import PriceMointor
 import pandas as pd
 import os
 
-arbitrage_dir_path = 'arbitrage_history/'
-if not os.path.exists(arbitrage_dir_path):
-    os.makedirs(arbitrage_dir_path)
-
-async def bot(person: PersonalExchangeInfo):
-    wait_time = 1.66
-    start_time = datetime.now()
-    priceMointor = PriceMointor()
-    earn_times = 0
-    print(f"Starting bot: {start_time}")
-    message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn']
-    arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
-    pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w')
-    
-    pairs_and_sizes = [
+eric = PersonalExchangeInfo('eric')
+priceMointor = PriceMointor()
+pairs_and_sizes = [
         (['ETH', 'BTC'], 0.05),
         (['BTC', 'TWD'], 0.003),
         (['ETH', 'TWD'], 0.05),
@@ -27,6 +15,26 @@ async def bot(person: PersonalExchangeInfo):
         (['ETH', 'USDT'], 0.05),
         (['USDT', 'TWD'], 90)
     ]
+
+currency_set = set()
+for pair, _ in pairs_and_sizes:
+    currency_set.update(pair)
+
+unique_currencies = list(currency_set)
+
+arbitrage_dir_path = 'arbitrage_history/'
+if not os.path.exists(arbitrage_dir_path):
+    os.makedirs(arbitrage_dir_path)
+
+
+async def bot(person: PersonalExchangeInfo):
+    wait_time = 1.66
+    start_time = datetime.now()
+    earn_times = 0
+    print(f"Starting bot: {start_time}")
+    message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn']
+    arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
+    pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w')
     
     while True:
         try:
@@ -82,6 +90,7 @@ async def bot(person: PersonalExchangeInfo):
             
             print(f"earn times: {earn_times}")
         except Exception as e:
+            #TODO:錯誤不中止，進行檢查餘額及訊息搜集
             print("Exception: ", e)
             await asyncio.gather(priceMointor.close())
             break
@@ -89,5 +98,18 @@ async def bot(person: PersonalExchangeInfo):
         await asyncio.sleep(wait_time)
 
 
-eric = PersonalExchangeInfo('eric')
-asyncio.run(bot(eric))
+init_invest_amount = 300000
+per_exchange_money = init_invest_amount / len(priceMointor.exchanges_name)
+per_pair_money = per_exchange_money / len(unique_currencies)
+
+async def balance_monitor(base_currency='TWD'):
+    exchanges_balance = {name:await eric.get_balance(name, unique_currencies) for name in priceMointor.exchanges_name}
+    usdt_price = float(await priceMointor.fetch_max_order_book('USDT',base_currency)['asks'][0][0])
+    eth_price = float(await priceMointor.fetch_max_order_book('ETH',base_currency)['asks'][0][0])
+    btc_price = float(await priceMointor.fetch_max_order_book('BTC',base_currency)['asks'][0][0])
+
+    print(exchanges_balance)
+
+# asyncio.run(bot(eric))
+
+asyncio.run(balance_monitor())

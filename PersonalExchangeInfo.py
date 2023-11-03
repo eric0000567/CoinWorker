@@ -4,9 +4,7 @@ from max.client import Client
 class PersonalExchangeInfo:
     def __init__(self, user_name) -> None:
         self.user_name = user_name
-        self.support_exchange_name = ['max', 'ace', 'bitopro']
         self.registered_exchange = {}
-        [self.register_exchange_key_secret(exchangeName) for exchangeName in self.support_exchange_name]
     
     def register_exchange_key_secret(self, exchangeName: str, apiKey="", apiSecret=""):
         try:
@@ -42,5 +40,20 @@ class PersonalExchangeInfo:
             return {'status': result['status'],
                      'avg_price': result['average'],
                      'executed_volume': result['amount']}
+    
+    async def get_balance(self, exchangeName, currencies:list):
+        balance = {}
+        if exchangeName == 'max':
+            account_balances = self.registered_exchange['max'].get_private_account_balances()
+            for coin in account_balances:
+                coin_name = coin['currency'].upper()
+                if coin_name in currencies:
+                    balance[coin_name] = float(coin['balance'])
+        else:
+            account_balance = await self.registered_exchange[exchangeName].fetch_free_balance()
+            for coin in account_balance:
+                if coin in currencies:
+                    balance[coin] = float(account_balance[coin])
+        return balance
 
 

@@ -53,8 +53,7 @@ async def bot(person: PersonalExchangeInfo):
                                                             result['sell']['price'],
                                                             result['buy']['ex_name'],
                                                             result['buy']['price'],
-                                                            result['size'],
-                                                            result['pair'][1])
+                                                            result['size'])
                 pd.DataFrame([[datetime.now(),
                               result['pair'],
                               result['sell']['ex_name'],
@@ -136,6 +135,6 @@ async def balance_monitor(base_currency='TWD'):
     print(exchanges_balance)
     print([usdt_price['asks'][0][0],eth_price['asks'][0][0],btc_price['asks'][0][0]])
 
-# asyncio.run(bot(eric))
+asyncio.run(bot(eric))
 
-asyncio.run(balance_monitor())
+# asyncio.run(balance_monitor())

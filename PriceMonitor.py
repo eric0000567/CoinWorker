@@ -10,6 +10,15 @@ class PriceMointor:
         self.exchanges_name = [name for name in self.exchanges_client]
         self.exchangs_fees = {name:self.exchanges_client[name].fees['trading']['taker'] for name in self.exchanges_name[1:]}
         self.exchangs_fees['max'] = self.exchanges_client['max'].get_public_vip_levels()[0]['taker_fee']
+        self.lowest_amount = {'USDT':15,
+                              'TWD':500,
+                              'BTC':0.0003333}
+        self.min_unit_precision = {'BTCTWD':8,
+                                   'ETHTWD':6,
+                                   'USDTTWD':2,
+                                   'BTCUSDT':6,
+                                   'ETHUSDT':5,
+                                   'ETHBTC':4}
     
     async def fetch_max_order_book(self, pair_one="BTC", pair_two="USDT"):
         return self.exchanges_client['max'].get_public_pair_depth(pair_one+pair_two, 1)
@@ -40,9 +49,11 @@ class PriceMointor:
         buy_price = min(asks_price_list)
         sell_price = max(bids_price_list)
 
-        order_size = min(asks_size_list[asks_price_list.index(buy_price)],
+        # 四捨五入最小單位
+        order_size = round(min(asks_size_list[asks_price_list.index(buy_price)],
                          bids_size_list[bids_price_list.index(sell_price)],
-                         min_order_size)
+                         min_order_size),self.min_unit_precision[pair[0]+pair[1]])
+        
         
         buy_exchange_name = self.exchanges_name[asks_price_list.index(buy_price)]
         sell_exchange_name = self.exchanges_name[bids_price_list.index(sell_price)]
@@ -51,9 +62,9 @@ class PriceMointor:
                                             sell_price,
                                             buy_exchange_name,
                                             buy_price,
-                                            order_size)
+                                            order_size,
+                                            pair[1])
 
-        #TODO 殘值計算，如果交易額度沒有達到最低要求不要購買
         if (profit > 0):
             result = {'pair':pair,
                       'size':order_size,
@@ -66,9 +77,17 @@ class PriceMointor:
         print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n spread: {profit}")
         return None
 
-    def spread_profit_counter(self, sell_exchange_name, sell_price, buy_exchange_name, buy_price, order_size):
+    def spread_profit_counter(self, sell_exchange_name, sell_price, buy_exchange_name, buy_price, order_size, base_currency:str):
         buy_fee = order_size * buy_price * float(self.exchangs_fees[buy_exchange_name])
         sell_fee = order_size * sell_price * self.exchangs_fees[sell_exchange_name]
+
+        buy_amount = buy_price*order_size
+        sell_amount = sell_price*order_size
+
+        #TODO 殘值計算，如果交易額度沒有達到最低要求不要購買
+        if buy_amount < self.lowest_amount[base_currency.upper()] | sell_amount < self.lowest_amount[base_currency.upper()] :
+            return 0
+
         return ((sell_price - buy_price) * order_size) - (buy_fee + sell_fee)
 
     async def close(self):

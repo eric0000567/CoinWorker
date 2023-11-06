@@ -32,9 +32,9 @@ async def bot(person: PersonalExchangeInfo):
     start_time = datetime.now()
     earn_times = 0
     print(f"Starting bot: {start_time}")
-    message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn']
+    message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
-    pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w')
+    pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
     
     while True:
         try:
@@ -48,7 +48,26 @@ async def bot(person: PersonalExchangeInfo):
                 result = await trade_signal
                 if result is None:
                     continue
-
+                #以下為測試時使用-------
+                actual_profit = priceMointor.spread_profit_counter(result['sell']['ex_name'],
+                                                            result['sell']['price'],
+                                                            result['buy']['ex_name'],
+                                                            result['buy']['price'],
+                                                            result['size'],
+                                                            result['pair'][1])
+                pd.DataFrame([[datetime.now(),
+                              result['pair'],
+                              result['sell']['ex_name'],
+                              result['sell']['price'],
+                              result['buy']['ex_name'],
+                              result['buy']['price'],
+                              result['size'],
+                              actual_profit,
+                              result['pair'][1]
+                              ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
+                earn_times += 1
+                continue
+                #以上為測試時使用-------
                 sell_order = asyncio.create_task(person.post_market_order(result['sell']['ex_name'],
                                                         result['pair'],
                                                         'sell',
@@ -75,16 +94,18 @@ async def bot(person: PersonalExchangeInfo):
                                                             sell_result['avg_price'],
                                                             result['buy']['ex_name'],
                                                             buy_result['avg_price'],
-                                                            result['size'])
-                pd.DataFrame([datetime.now(),
+                                                            result['size'],
+                                                            result['pair'][1])
+                pd.DataFrame([[datetime.now(),
                               result['pair'],
                               result['sell']['ex_name'],
                               sell_result['avg_price'],
                               result['buy']['ex_name'],
                               buy_result['avg_price'],
                               result['size'],
-                              actual_profit
-                              ]).to_csv(arbitrage_path,mode='a',header=False)
+                              actual_profit,
+                              result['pair'][1]
+                              ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
                 earn_times += 1
                 print(f"{result['pair'][0]+'/'+result['pair'][1]} sell {result['sell']['ex_name']}:{result['sell']['price']} buy {result['buy']['ex_name']}:{result['sell']['price']} order size: {result['size']} \n earn: {result['pair'][1]}${actual_profit}")
             
@@ -104,11 +125,16 @@ per_pair_money = per_exchange_money / len(unique_currencies)
 
 async def balance_monitor(base_currency='TWD'):
     exchanges_balance = {name:await eric.get_balance(name, unique_currencies) for name in priceMointor.exchanges_name}
-    usdt_price = float(await priceMointor.fetch_max_order_book('USDT',base_currency)['asks'][0][0])
-    eth_price = float(await priceMointor.fetch_max_order_book('ETH',base_currency)['asks'][0][0])
-    btc_price = float(await priceMointor.fetch_max_order_book('BTC',base_currency)['asks'][0][0])
+    get_usdt_price = await priceMointor.fetch_max_order_book('USDT',base_currency)
+    get_eth_price = await priceMointor.fetch_max_order_book('ETH',base_currency)
+    get_btc_price = await priceMointor.fetch_max_order_book('BTC',base_currency)
+
+    usdt_price = await get_usdt_price
+    eth_price = await get_eth_price
+    btc_price = await get_btc_price
 
     print(exchanges_balance)
+    print([usdt_price['asks'][0][0],eth_price['asks'][0][0],btc_price['asks'][0][0]])
 
 # asyncio.run(bot(eric))
 

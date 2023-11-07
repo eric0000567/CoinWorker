@@ -4,6 +4,7 @@ from PersonalExchangeInfo import PersonalExchangeInfo
 from PriceMonitor import PriceMointor
 import pandas as pd
 import os
+from message_control import send_email
 
 eric = PersonalExchangeInfo('eric')
 priceMointor = PriceMointor()
@@ -26,16 +27,24 @@ arbitrage_dir_path = 'arbitrage_history/'
 if not os.path.exists(arbitrage_dir_path):
     os.makedirs(arbitrage_dir_path)
 
+init_invest_amount = 300000
+per_exchange_money = init_invest_amount / len(priceMointor.exchanges_name)
+per_pair_money = per_exchange_money / len(unique_currencies)
+
 
 async def bot(person: PersonalExchangeInfo):
-    wait_time = 1.66
+    wait_time = 2.86
     start_time = datetime.now()
     earn_times = 0
     print(f"Starting bot: {start_time}")
     message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
-    
+    send_email_task = asyncio.create_task(send_email(f"arbitrage bot start at {start_time}",
+    f"每{wait_time}監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_invest_amount}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易對的金額為：{per_pair_money}",
+                                                     []))
+    send = await send_email_task
+
     while True:
         try:
             total_time = datetime.now() - start_time
@@ -65,6 +74,8 @@ async def bot(person: PersonalExchangeInfo):
                               result['pair'][1]
                               ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
                 earn_times += 1
+                if earn_times%500 == 0:
+                    send_email_task = await asyncio.create_task(send_email(f"arbitrage earn {earn_times} times",f"總運行時間：{total_time}",[arbitrage_path,'output.log']))
                 continue
                 #以上為測試時使用-------
                 sell_order = asyncio.create_task(person.post_market_order(result['sell']['ex_name'],
@@ -112,15 +123,15 @@ async def bot(person: PersonalExchangeInfo):
         except Exception as e:
             #TODO:錯誤不中止，進行檢查餘額及訊息搜集
             print("Exception: ", e)
-            await asyncio.gather(priceMointor.close())
-            break
+            # await asyncio.gather(priceMointor.close())
+            send_email_task = asyncio.create_task(send_email(f"Arbitrage Exception {e}",f"{e}",['error.log']))
+            send = await send_email_task
+            await asyncio.sleep(45)
+
 
         await asyncio.sleep(wait_time)
 
 
-init_invest_amount = 300000
-per_exchange_money = init_invest_amount / len(priceMointor.exchanges_name)
-per_pair_money = per_exchange_money / len(unique_currencies)
 
 async def balance_monitor(base_currency='TWD'):
     exchanges_balance = {name:await eric.get_balance(name, unique_currencies) for name in priceMointor.exchanges_name}

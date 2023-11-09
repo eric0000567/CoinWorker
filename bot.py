@@ -31,6 +31,23 @@ init_invest_amount = 300000
 per_exchange_money = init_invest_amount / len(priceMointor.exchanges_name)
 per_pair_money = per_exchange_money / len(unique_currencies)
 
+async def init_balance(init_invest_amount=300000, base_currency='TWD', unique_currencies_num=1):
+    usdt_price = await priceMointor.fetch_max_order_book('USDT',base_currency)
+    eth_price = await priceMointor.fetch_max_order_book('ETH',base_currency)
+    btc_price = await priceMointor.fetch_max_order_book('BTC',base_currency)
+
+    per_exchange_money = init_invest_amount / len(priceMointor.exchanges_name)
+    per_pair_money = per_exchange_money / unique_currencies_num
+
+    currencies_price = {'USDT':usdt_price['asks'][0][0],
+                        'ETH':eth_price['asks'][0][0],
+                        'BTC':btc_price['asks'][0][0],
+                        base_currency:1}
+    # TODO 要獲取每間交易所初始的幣有多少
+    per_pair_amount = {coin_name: per_pair_money/float(currencies_price[coin_name]) for coin_name in currencies_price}
+    per_exchange_amount = {name:per_pair_amount for name in priceMointor.exchanges_name}
+    return per_exchange_amount
+
 
 async def bot(person: PersonalExchangeInfo):
     wait_time = 2.86
@@ -40,11 +57,9 @@ async def bot(person: PersonalExchangeInfo):
     message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'buy_ExName', 'buy_price', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
-    send_email_task = asyncio.create_task(send_email(f"arbitrage bot start at {start_time}",
+    send_email_task = await asyncio.create_task(send_email(f"arbitrage bot start at {start_time}",
     f"每{wait_time}監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_invest_amount}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易對的金額為：{per_pair_money}",
                                                      []))
-    send = await send_email_task
-
     while True:
         try:
             total_time = datetime.now() - start_time
@@ -75,7 +90,12 @@ async def bot(person: PersonalExchangeInfo):
                               ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
                 earn_times += 1
                 if earn_times%500 == 0:
-                    send_email_task = await asyncio.create_task(send_email(f"arbitrage earn {earn_times} times",f"總運行時間：{total_time}",[arbitrage_path,'output.log']))
+                    df = pd.read_csv(arbitrage_path)
+                    df_no_duplicates = df.drop_duplicates(subset=['sell_price'])
+                    df_no_duplicates = df_no_duplicates.drop_duplicates(subset=['buy_price'])
+
+                    df_no_duplicates.to_csv('arbitrage_history/earn_history.csv',index=False)
+                    send_email_task = await asyncio.create_task(send_email(f"arbitrage earn {len(df_no_duplicates['sell_price'])} times",f"總運行時間：{total_time}\n獲利明細請看附件",['arbitrage_history/earn_history.csv','output.log']))
                 continue
                 #以上為測試時使用-------
                 sell_order = asyncio.create_task(person.post_market_order(result['sell']['ex_name'],
@@ -124,8 +144,7 @@ async def bot(person: PersonalExchangeInfo):
             #TODO:錯誤不中止，進行檢查餘額及訊息搜集
             print("Exception: ", e)
             # await asyncio.gather(priceMointor.close())
-            send_email_task = asyncio.create_task(send_email(f"Arbitrage Exception {e}",f"{e}",['error.log']))
-            send = await send_email_task
+            send_email_task = await asyncio.create_task(send_email(f"Arbitrage Exception {e}",f"{e}",['error.log']))
             await asyncio.sleep(45)
 
 
@@ -133,19 +152,27 @@ async def bot(person: PersonalExchangeInfo):
 
 
 
+
 async def balance_monitor(base_currency='TWD'):
     exchanges_balance = {name:await eric.get_balance(name, unique_currencies) for name in priceMointor.exchanges_name}
-    get_usdt_price = await priceMointor.fetch_max_order_book('USDT',base_currency)
-    get_eth_price = await priceMointor.fetch_max_order_book('ETH',base_currency)
-    get_btc_price = await priceMointor.fetch_max_order_book('BTC',base_currency)
+    usdt_price = await priceMointor.fetch_max_order_book('USDT',base_currency)
+    eth_price = await priceMointor.fetch_max_order_book('ETH',base_currency)
+    btc_price = await priceMointor.fetch_max_order_book('BTC',base_currency)
 
-    usdt_price = await get_usdt_price
-    eth_price = await get_eth_price
-    btc_price = await get_btc_price
-
+    currencies_price = {'USDT':usdt_price['asks'][0][0],
+                        'ETH':eth_price['asks'][0][0],
+                        'BTC':btc_price['asks'][0][0],}
+    # TODO 要獲取每間交易所初始的幣有多少
+    per_pair_amount = {coin_name: per_pair_money/float(currencies_price[coin_name]) for coin_name in currencies_price}
     print(exchanges_balance)
-    print([usdt_price['asks'][0][0],eth_price['asks'][0][0],btc_price['asks'][0][0]])
+    print(currencies_price)
+    print(per_pair_amount)
 
-asyncio.run(bot(eric))
+# asyncio.run(bot(eric))
 
-# asyncio.run(balance_monitor())
+async def main():
+    init_invest_balance = await init_balance(300000,"TWD",len(unique_currencies))
+    #TODO 新增偵測功能，每次搬磚都要扣除餘額
+
+
+asyncio.run(init_balance())

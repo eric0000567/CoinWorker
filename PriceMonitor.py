@@ -12,7 +12,7 @@ class PriceMointor:
         self.exchangs_fees['max'] = self.exchanges_client['max'].get_public_vip_levels()[0]['taker_fee']
         self.lowest_amount = {'USDT':15,
                               'TWD':500,
-                              'BTC':0.0003333}
+                              'BTC':0.0003003}
         self.min_unit_precision = {'BTCTWD':8,
                                    'ETHTWD':6,
                                    'USDTTWD':2,

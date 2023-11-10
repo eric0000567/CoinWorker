@@ -49,9 +49,11 @@ class PriceMointor:
         buy_price = min(asks_price_list)
         sell_price = max(bids_price_list)
 
+        sell_order = asks_size_list[asks_price_list.index(buy_price)]
+        buy_order = bids_size_list[bids_price_list.index(sell_price)]
         # 四捨五入最小單位
-        order_size = round(min(asks_size_list[asks_price_list.index(buy_price)],
-                         bids_size_list[bids_price_list.index(sell_price)],
+        order_size = round(min(sell_order,
+                         buy_order,
                          min_order_size),self.min_unit_precision[pair[0]+pair[1]])
 
         buy_exchange_name = self.exchanges_name[asks_price_list.index(buy_price)]
@@ -61,7 +63,7 @@ class PriceMointor:
         sell_amount = sell_price*order_size
         #TODO 測試用：殘值計算，如果交易額度沒有達到最低要求不要購買
         if buy_amount < self.lowest_amount[pair[1].upper()] and sell_amount < self.lowest_amount[pair[1].upper()] :
-            print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n sell order size: {sell_amount} or buy order size: {buy_amount} need bigger than {self.lowest_amount[pair[1].upper()]}")
+            # print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n sell order size: {sell_amount} or buy order size: {buy_amount} need bigger than {self.lowest_amount[pair[1].upper()]}")
             return None
         
         profit = self.spread_profit_counter(sell_exchange_name,
@@ -74,13 +76,14 @@ class PriceMointor:
             result = {'pair':pair,
                       'size':order_size,
                       'buy':{'ex_name':buy_exchange_name,
-                             'price':buy_price},
+                             'price':buy_price,
+                             'order_size':buy_order},
                       'sell':{'ex_name':sell_exchange_name,
-                             'price':sell_price}}
-            
+                             'price':sell_price,
+                             'order_size':sell_order}}
             print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} order size: {order_size} \n earn: {pair[1]}${profit}")
             return result
-        print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n spread: {profit}")
+        # print(f"{pair[0]+'/'+pair[1]} sell {sell_exchange_name}:{sell_price} buy {buy_exchange_name}:{buy_price} \n spread: {profit}")
         return None
 
     def spread_profit_counter(self, sell_exchange_name, sell_price, buy_exchange_name, buy_price, order_size):

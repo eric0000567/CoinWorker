@@ -6,7 +6,7 @@ import pandas as pd
 import os
 from message_control import send_email
 
-
+#TODO 新增介面系統，做個網頁出來讓自己好觀察
 priceMointor = PriceMointor()
 eric = PersonalExchangeInfo('eric')
 pairs_and_sizes = [
@@ -44,7 +44,6 @@ async def init_balance(init_invest_amount=300000, base_currency='TWD', unique_cu
     # TODO 要獲取每間交易所初始的幣有多少
     per_pair_amount = {coin_name: float(per_pair_money/float(currencies_price[coin_name])) for coin_name in currencies_price}
     per_exchange_amount = {name:per_pair_amount for name in priceMointor.exchanges_name}
-    print(per_exchange_amount)
     return per_exchange_amount
 
 async def rebalance_fee(init_invest_money, trade_df: pd.DataFrame):
@@ -64,7 +63,7 @@ async def rebalance_fee(init_invest_money, trade_df: pd.DataFrame):
 
 
 async def bot(person: PersonalExchangeInfo):
-    frequency = 2.86
+    frequency = 3
     start_time = datetime.now()
     next_send_time = start_time + timedelta(hours=6)
     earn_times = 0
@@ -80,9 +79,7 @@ async def bot(person: PersonalExchangeInfo):
     
     while True:
         try:
-            total_time = datetime.now() - start_time
-            print(f"Execution time: {total_time}")
-            
+            total_time = datetime.now() - start_time            
             trade_signals = [asyncio.ensure_future(priceMointor.trade_signal(pair=pair, min_order_size=size)) for pair, size in pairs_and_sizes]
             
             for trade_signal in asyncio.as_completed(trade_signals):
@@ -108,15 +105,20 @@ async def bot(person: PersonalExchangeInfo):
                               result['pair'][1]
                               ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
                 earn_times += 1
-                if datetime.now() >= (next_send_time+timedelta(hours=6)):
+                if datetime.now() >= (next_send_time+timedelta(hours=4)):
                     df = pd.read_csv(arbitrage_path)
                     df_no_duplicates = df.drop_duplicates(subset=['sell_price'])
                     df_no_duplicates = df_no_duplicates.drop_duplicates(subset=['buy_price'])
 
                     df_no_duplicates.to_csv(f'{arbitrage_dir_path}/earn_history.csv',index=False)
                     rebalance_times = await rebalance_fee(init_invest_balance, df_no_duplicates)
-                    await send_email(f"arbitrage earn {len(df_no_duplicates['sell_price'])} times",f"總運行時間：{total_time}\n資產再平衡次數：{rebalance_times}\n每次再平衡費用約為：0.8 USDT\n再平衡總花費：{rebalance_times*0.8} USDT\n獲利明細請看附件",[f'{arbitrage_dir_path}/earn_history.csv','output.log'])
+                    twd_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'TWD']['earn'].sum()
+                    usdt_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'USDT']['earn'].sum()
+                    btc_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'BTC']['earn'].sum()
+
+                    await send_email(f"arbitrage earn {len(df_no_duplicates['sell_price'])} times",f"總運行時間：{total_time}\n資產再平衡次數：{rebalance_times}\n每次再平衡費用約為：0.8 USDT\n再平衡總花費：{rebalance_times*0.8} USDT\n\nTWD總獲利：{twd_earn}\nUSDT總獲利：{usdt_earn}\nBTC總獲利：{btc_earn}\n\n獲利明細請看附件",[f'{arbitrage_dir_path}/earn_history.csv','output.log'])
                     next_send_time = datetime.now()
+                    print(f"Execution time: {total_time}")
                     print('--'*30)
 
                 continue

@@ -5,7 +5,7 @@ from email.mime.application import MIMEApplication
 
 async def send_email(subject:str, message:str, attachment_paths:list):
     from_email = 'eric0000567@gmail.com'
-    to_email = ['eric0000567@gmail.com', 'a0986676810@gmail.com']
+    to_email = ['eric0000567@gmail.com']#, 'a0986676810@gmail.com']
 
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587  # Gmail的SMTP端口号

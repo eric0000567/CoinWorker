@@ -9,6 +9,7 @@ from message_control import send_email
 #TODO 新增介面系統，做個網頁出來讓自己好觀察
 priceMointor = PriceMointor()
 eric = PersonalExchangeInfo('eric')
+person_init_balance = 0
 pairs_and_sizes = [
         (['ETH', 'BTC'], 0.05),
         (['BTC', 'TWD'], 0.003),
@@ -68,14 +69,14 @@ async def bot(person: PersonalExchangeInfo):
     next_send_time = start_time + timedelta(hours=6)
     earn_times = 0
     init_money = 300000
-    init_invest_balance = await init_balance(init_money,"TWD",len(unique_currencies))
+    person_init_balance = await init_balance(init_money,"TWD",len(unique_currencies))
 
     print(f"Starting bot: {start_time}")
     message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'bids_order', 'buy_ExName', 'buy_price', 'asks_order', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
     await send_email(f"arbitrage bot start at {start_time}",
-    f"每{frequency}監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{init_invest_balance}",[])
+    f"每{frequency}秒監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{person_init_balance}",[])
     
     while True:
         try:
@@ -92,7 +93,18 @@ async def bot(person: PersonalExchangeInfo):
                                                             result['buy']['ex_name'],
                                                             result['buy']['price'],
                                                             result['size'])
-                pd.DataFrame([[datetime.now(),
+                                                            
+                if person_init_balance[result['sell']['ex_name']][result['pair'][0]] < result['size'] or \
+                    person_init_balance[result['buy']['ex_name']][result['pair'][1]] < result['size']* result['buy']['price']:
+                    print(f"餘額不足無法進行搬磚，{result['pair'][0]}餘額剩餘{person_init_balance[result['sell']['ex_name']][result['pair'][0]]}\n{result['pair'][1]}餘額剩餘{person_init_balance[result['buy']['ex_name']][result['pair'][1]]} \n\n 此次需要sell {result['pair'][0]}: {result['size']}\n\n 需要buy {result['pair'][1]}: {result['size'] * result['buy']['price']}")
+                    continue
+                person_init_balance[result['sell']['ex_name']][result['pair'][0]] -= result['size']
+                person_init_balance[result['sell']['ex_name']][result['pair'][1]] += (result['size'] * result['sell']['price'])
+
+                person_init_balance[result['buy']['ex_name']][result['pair'][1]] -= (result['size'] * result['buy']['price'])
+                person_init_balance[result['buy']['ex_name']][result['pair'][0]] += result['size']
+
+                profit_report = pd.DataFrame([[datetime.now(),
                               result['pair'],
                               result['sell']['ex_name'],
                               result['sell']['price'],
@@ -103,20 +115,20 @@ async def bot(person: PersonalExchangeInfo):
                               result['size'],
                               actual_profit,
                               result['pair'][1]
-                              ]]).to_csv(arbitrage_path,mode='a',header=False,index=False)
+                              ]])
+                profit_report.to_csv(arbitrage_path,mode='a',header=False,index=False)
                 earn_times += 1
                 if datetime.now() >= (next_send_time+timedelta(hours=4)):
                     df = pd.read_csv(arbitrage_path)
-                    df_no_duplicates = df.drop_duplicates(subset=['sell_price'])
-                    df_no_duplicates = df_no_duplicates.drop_duplicates(subset=['buy_price'])
+                    df_no_duplicates = df.drop_duplicates(subset=['sell_price','buy_price', 'bids_order','asks_order'])
 
                     df_no_duplicates.to_csv(f'{arbitrage_dir_path}/earn_history.csv',index=False)
-                    rebalance_times = await rebalance_fee(init_invest_balance, df_no_duplicates)
+                    # rebalance_times = await rebalance_fee(person_init_balance, df_no_duplicates)
                     twd_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'TWD']['earn'].sum()
                     usdt_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'USDT']['earn'].sum()
                     btc_earn = df_no_duplicates[df_no_duplicates['base_currency'] == 'BTC']['earn'].sum()
 
-                    await send_email(f"arbitrage earn {len(df_no_duplicates['sell_price'])} times",f"總運行時間：{total_time}\n資產再平衡次數：{rebalance_times}\n每次再平衡費用約為：0.8 USDT\n再平衡總花費：{rebalance_times*0.8} USDT\n\nTWD總獲利：{twd_earn}\nUSDT總獲利：{usdt_earn}\nBTC總獲利：{btc_earn}\n\n獲利明細請看附件",[f'{arbitrage_dir_path}/earn_history.csv','output.log'])
+                    await send_email(f"arbitrage earn {len(df_no_duplicates['sell_price'])} times",f"總運行時間：{total_time} \n\nTWD總獲利：{twd_earn}\nUSDT總獲利：{usdt_earn}\nBTC總獲利：{btc_earn}\n\n獲利明細請看附件\n\n個人餘額剩餘: {person_init_balance}",[f'{arbitrage_dir_path}/earn_history.csv','output.log'])
                     next_send_time = datetime.now()
                     print(f"Execution time: {total_time}")
                     print('--'*30)

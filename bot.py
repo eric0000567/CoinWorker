@@ -74,8 +74,8 @@ async def bot(person: PersonalExchangeInfo):
     message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'bids_order', 'buy_ExName', 'buy_price', 'asks_order', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
-    # await send_email(f"arbitrage bot start at {start_time}",
-    # f"每{frequency}秒監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{person_init_balance}",[])
+    await send_email(f"arbitrage bot start at {start_time}",
+    f"每{frequency}秒監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{person_init_balance}",[])
   
     while True:
         try:

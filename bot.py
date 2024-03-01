@@ -9,7 +9,6 @@ from message_control import send_email
 #TODO 新增介面系統，做個網頁出來讓自己好觀察
 priceMointor = PriceMointor()
 eric = PersonalExchangeInfo('eric')
-person_init_balance = 0
 pairs_and_sizes = [
         (['ETH', 'BTC'], 0.05),
         (['BTC', 'TWD'], 0.003),
@@ -44,8 +43,8 @@ async def init_balance(init_invest_amount=300000, base_currency='TWD', unique_cu
                         base_currency:1}
     # TODO 要獲取每間交易所初始的幣有多少
     per_pair_amount = {coin_name: float(per_pair_money/float(currencies_price[coin_name])) for coin_name in currencies_price}
-    per_exchange_amount = {name:per_pair_amount for name in priceMointor.exchanges_name}
-    return per_exchange_amount
+    per_exchange_amount = {name: per_pair_amount for name in priceMointor.exchanges_name}
+    return pd.DataFrame.from_dict(per_exchange_amount, orient='index')
 
 async def rebalance_fee(init_invest_money, trade_df: pd.DataFrame):
     init_invest = pd.DataFrame(init_invest_money)
@@ -70,14 +69,14 @@ async def bot(person: PersonalExchangeInfo):
     earn_times = 0
     init_money = 300000
     person_init_balance = await init_balance(init_money,"TWD",len(unique_currencies))
-
+    print(person_init_balance)
     print(f"Starting bot: {start_time}")
     message_columns = ['trade_time', 'pair', 'sell_ExName', 'sell_price', 'bids_order', 'buy_ExName', 'buy_price', 'asks_order', 'order_size', 'earn', 'base_currency']
     arbitrage_path = f"{arbitrage_dir_path}/{person.user_name}_{start_time}.csv"
     pd.DataFrame(columns=message_columns).to_csv(arbitrage_path, mode='w',index=False)
-    await send_email(f"arbitrage bot start at {start_time}",
-    f"每{frequency}秒監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{person_init_balance}",[])
-    
+    # await send_email(f"arbitrage bot start at {start_time}",
+    # f"每{frequency}秒監測數據一次，以下為監測的交易對及掛單數量\n{pairs_and_sizes}\n需要提供{unique_currencies}這些幣種\n初始投資金額為：{init_money}\n目前投資的交易所：{priceMointor.exchanges_name}\n每個交易所及交易對的數量為：{person_init_balance}",[])
+  
     while True:
         try:
             total_time = datetime.now() - start_time            
@@ -94,15 +93,17 @@ async def bot(person: PersonalExchangeInfo):
                                                             result['buy']['price'],
                                                             result['size'])
                                                             
-                if person_init_balance[result['sell']['ex_name']][result['pair'][0]] < result['size'] or \
-                    person_init_balance[result['buy']['ex_name']][result['pair'][1]] < result['size']* result['buy']['price']:
-                    print(f"餘額不足無法進行搬磚，{result['pair'][0]}餘額剩餘{person_init_balance[result['sell']['ex_name']][result['pair'][0]]}\n{result['pair'][1]}餘額剩餘{person_init_balance[result['buy']['ex_name']][result['pair'][1]]} \n\n 此次需要sell {result['pair'][0]}: {result['size']}\n\n 需要buy {result['pair'][1]}: {result['size'] * result['buy']['price']}")
+                if person_init_balance[result['pair'][0]].loc[result['sell']['ex_name']] < result['size'] or \
+                    person_init_balance[result['pair'][1]].loc[result['buy']['ex_name']] < result['size']* result['buy']['price']:
+                    print(f"餘額不足無法進行搬磚\n{result['sell']['ex_name']}的{result['pair'][0]}餘額剩餘: {person_init_balance[result['pair'][0]].loc[result['sell']['ex_name']]}\n{result['buy']['ex_name']}的{result['pair'][1]}餘額剩餘: {person_init_balance[result['pair'][1]].loc[result['buy']['ex_name']]}\n 此次需要sell {result['pair'][0]}: {result['size']}\n 需要buy {result['pair'][1]}: {result['size'] * result['buy']['price']}\n")
                     continue
-                person_init_balance[result['sell']['ex_name']][result['pair'][0]] -= result['size']
-                person_init_balance[result['sell']['ex_name']][result['pair'][1]] += (result['size'] * result['sell']['price'])
 
-                person_init_balance[result['buy']['ex_name']][result['pair'][1]] -= (result['size'] * result['buy']['price'])
-                person_init_balance[result['buy']['ex_name']][result['pair'][0]] += result['size']
+                person_init_balance[result['pair'][0]].loc[result['sell']['ex_name']] -= result['size']
+                person_init_balance[result['pair'][1]].loc[result['sell']['ex_name']] += (result['size'] * result['sell']['price'])
+
+                person_init_balance[result['pair'][1]].loc[result['buy']['ex_name']] -= (result['size'] * result['buy']['price'])
+                person_init_balance[result['pair'][0]].loc[result['buy']['ex_name']] += result['size']
+                print(person_init_balance)
 
                 profit_report = pd.DataFrame([[datetime.now(),
                               result['pair'],
